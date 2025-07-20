@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷宮探索遊戲 v10.6 (UI修正版)</title>
+    <style>
+        :root {
+            --wall-color: #2c3e50; --path-color: #ecf0f1; --start-color: #2ecc71;
+            --end-color: #e74c3c; --cleared-color: #f1c40f; --money-color: #27ae60;
+            --diamond-color: #3498db; --player-size: 28px; --cell-size: 40px;
+            --primary-bg: #34495e; --text-color: #ffffff; --button-bg: #3498db;
+            --button-hover-bg: #2980b9; --danger-bg: #c0392b;
+            --dark-color: #1a2531; --visible-transition: background-color 0.4s ease, opacity 0.4s ease;
+        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Microsoft JhengHei', '微軟正黑體', sans-serif; background-color: var(--primary-bg); color: var(--text-color); overflow: hidden; -webkit-user-select: none; user-select: none; }
+        .screen { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; text-align: center; box-sizing: border-box; padding: 20px; animation: fadeIn 0.5s ease-in-out; position: relative; }
+        .screen.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        h1 { font-size: 3em; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); } h2 { font-size: 2em; margin-bottom: 30px; } p { font-size: 1.2em; margin-top: 20px; }
+        .button { background-color: var(--button-bg); color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 1.2em; cursor: pointer; margin: 10px; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.2); position: relative; }
+        .button.danger { background-color: var(--danger-bg); } .button.danger:hover { background-color: #a53125; }
+        .button:hover:not(:disabled) { background-color: var(--button-hover-bg); transform: translateY(-2px); } .button:active:not(:disabled) { transform: translateY(1px); }
+        .button:disabled { background-color: #7f8c8d; cursor: not-allowed; opacity: 0.7; }
+        .small-button { padding: 8px 15px; font-size: 0.9em; }
+        #global-currency-display { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; background: rgba(0,0,0,0.3); padding: 10px 15px; border-radius: 20px; z-index: 10; font-size: 1.2em; font-weight: bold; cursor: pointer; transition: all 0.3s ease; }
+        #global-currency-display:hover { background: rgba(0,0,0,0.5); transform: scale(1.05); }
+        #money-display { color: var(--cleared-color); }
+        #diamond-display { color: var(--diamond-color); }
+        #level-select-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 800px; max-height: 70vh; overflow-y: auto; padding: 10px; margin-top: 15px; }
+        .cleared-mark { position: absolute; top: -10px; right: -10px; font-size: 1.5em; color: var(--cleared-color); text-shadow: 1px 1px 3px rgba(0,0,0,0.7); transform: rotate(15deg); }
+        .button.treasure-hunt-btn { background: linear-gradient(45deg, var(--cleared-color), #f39c12); color: #2c3e50; font-weight: bold; border: 2px solid white; width: calc(100% - 20px); margin-left: auto; margin-right: auto; }
+        #character-select-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; max-width: 600px; flex-wrap: wrap; margin-top: 15px;}
+        .character-option { width: 80px; height: 80px; border: 3px solid transparent; border-radius: 50%; cursor: pointer; transition: all 0.3s ease; background-color: #fff; padding: 5px; }
+        .character-option:hover { transform: scale(1.1); border-color: var(--button-bg); } .character-option.selected { border-color: var(--start-color); transform: scale(1.2); box-shadow: 0 0 15px var(--start-color); }
+        #game-screen { justify-content: flex-start; }
+        #game-container { width: 100vw; height: 100vh; border: none; background-color: var(--dark-color); position: relative; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 0px; }
+        #in-game-ui { position: absolute; top: 15px; left: 15px; right: 15px; z-index: 20; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+        #in-game-ui .button { pointer-events: all; }
+        #game-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; max-width: 300px; }
+        .top-left-ui { display: flex; flex-direction: column; gap: 10px; align-items: flex-start;}
+        #game-stats { display: flex; gap: 20px; background: rgba(0,0,0,0.3); padding: 5px 15px; border-radius: 10px; align-items: center; flex-wrap: wrap; }
+        /* --- MODIFICATION START --- */
+        #speed-boost-indicator, #flare-indicator {
+            font-size: 1em;
+            color: var(--cleared-color);
+            font-weight: bold;
+            visibility: hidden; /* Changed from display: none */
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        /* --- MODIFICATION END --- */
+        .stat-item { font-size: 1.2em; font-weight: bold; } #timer-display.bonus { color: var(--cleared-color); }
+        #carried-loot-display { display: none; gap: 15px; background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 10px; font-size: 1.1em; font-weight: bold; }
+        .loot-item span { margin-left: 5px; }
+        #occupation-bar-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 50%; max-width: 400px; height: 20px; background-color: rgba(0,0,0,0.3); border: 2px solid #fff; border-radius: 10px; z-index: 20; opacity: 0; transition: opacity 0.3s ease; }
+        #occupation-bar { width: 0%; height: 100%; background-color: var(--start-color); border-radius: 8px; transition: width 0.1s linear; }
+        #occupation-bar-container.visible { opacity: 1; }
+        #maze { position: absolute; display: grid; }
+        #player { width: var(--player-size); height: var(--player-size); background-size: cover; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; box-shadow: 0 0 10px rgba(0,0,0,0.5); transition: opacity 0.3s ease; }
+        #player.invisible { opacity: 0.5; filter: drop-shadow(0 0 5px #3498db); }
+        .monster { width: var(--player-size); height: var(--player-size); background-size: cover; border-radius: 8px; position: absolute; z-index: 9; transition: transform 0.1s linear, filter 0.5s ease, opacity 0.5s ease; opacity: 0; }
+        .monster.visible { opacity: 1; }
+        .monster.dying { animation: monster-die 0.5s ease-out forwards; }
+        @keyframes monster-die { from { opacity: 1; transform: scale(1) rotate(0); } to { opacity: 0; transform: scale(0) rotate(720deg); } }
+        .treasure { width: var(--player-size); height: var(--player-size); background-size: contain; background-repeat: no-repeat; background-position: center; position: absolute; z-index: 8; opacity: 0; }
+        .treasure.visible { opacity: 1; transition: var(--visible-transition); }
+        .treasure.opened { animation: treasure-open 0.5s ease-out forwards; }
+        @keyframes treasure-open { 0% { transform: translateY(0) scale(1) rotate(0); opacity: 1; } 30% { transform: translateY(-10px) scale(1.1) rotate(15deg); } 100% { transform: translateY(-20px) scale(0) rotate(360deg); opacity: 0; } }
+        .grid-cell { width: var(--cell-size); height: var(--cell-size); transition: var(--visible-transition); }
+        .wall { background-color: var(--wall-color); opacity: 0.5; } .path, .start, .end { background-color: var(--dark-color); }
+        .grid-cell.visible:not(.wall) { background-color: var(--path-color); } .grid-cell.start.visible { background-color: var(--start-color); } .grid-cell.end.visible { background-color: var(--end-color); }
+        #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; font-size: 1.8em; }
+        .spinner { border: 8px solid rgba(255, 255, 255, 0.3); border-top: 8px solid var(--button-bg); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        #win-rewards { width: 80%; max-width: 400px; text-align: left; margin-top: 20px; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 10px; }
+        #win-rewards p { display: flex; justify-content: space-between; margin: 10px 0; font-size: 1.2em; } #win-rewards p span:last-child { color: var(--money-color); font-weight: bold; } #win-rewards hr { border-color: rgba(255,255,255,0.3); }
+        #win-rewards .diamond-reward { color: var(--diamond-color); font-weight: bold; font-size: 1.3em; text-align: center; animation: diamond-pulse 1.5s infinite; }
+        @keyframes diamond-pulse { 0%, 100% { transform: scale(1); text-shadow: 0 0 5px var(--diamond-color); } 50% { transform: scale(1.1); text-shadow: 0 0 20px var(--diamond-color); } }
+        #store-item-grid { display: flex; flex-direction: column; gap: 20px; width: 90%; max-width: 500px; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 10px; max-height: 65vh; overflow-y: auto; }
+        #store-item-grid::-webkit-scrollbar { width: 8px; }
+        #store-item-grid::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px; }
+        #store-item-grid::-webkit-scrollbar-thumb { background-color: var(--button-bg); border-radius: 4px; }
+        #store-item-grid::-webkit-scrollbar-thumb:hover { background-color: var(--button-hover-bg); }
+        .store-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; }
+        .store-item-info { text-align: left; } .store-item-info h3 { margin: 0 0 5px; } .store-item-info p { margin: 0; font-size: 0.9em; opacity: 0.8; }
+        .store-item-buy-action { position: relative; margin-left: 15px; }
+        .store-item-buy-action .button { margin: 0; flex-shrink: 0; }
+        .item-quantity-display { position: absolute; top: -10px; right: -10px; background-color: var(--end-color); color: var(--text-color); min-width: 24px; height: 24px; padding: 0 5px; border-radius: 12px; display: none; justify-content: center; align-items: center; font-size: 0.9em; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 1; }
+        .item-quantity-display.active { background-color: var(--start-color); }
+        #level-info-display { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; width: 90%; max-width: 500px; text-align: left; margin-bottom: 20px;}
+        #level-info-display p { font-size: 1em; margin: 8px 0; display: flex; justify-content: space-between; }
+        #joystick-container { position: absolute; bottom: 40px; left: 40px; width: 150px; height: 150px; display: none; z-index: 100; user-select: none; }
+        #joystick-base { position: relative; width: 100%; height: 100%; background-color: rgba(52, 73, 94, 0.5); border-radius: 50%; border: 3px solid rgba(236, 240, 241, 0.5); }
+        #joystick-handle { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background-color: rgba(52, 152, 219, 0.8); border-radius: 50%; transform: translate(-50%, -50%); transition: transform 0.1s ease-out; }
+        .item-cell { position: absolute; width: var(--cell-size); height: var(--cell-size); display: flex; justify-content: center; align-items: center; font-size: 28px; z-index: 7; opacity: 0; transition: opacity 0.4s ease; }
+        .item-cell.visible { opacity: 0.7; }
+        #vfx-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 11; pointer-events: none; }
+        .explosion { position: absolute; width: calc(var(--cell-size) * 3); height: calc(var(--cell-size) * 3); border-radius: 50%; background-color: transparent; border: 4px solid var(--cleared-color); animation: explosion-anim 0.4s ease-out forwards; }
+        @keyframes explosion-anim { from { transform: translate(-50%, -50%) scale(0); opacity: 1; } to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+        #custom-toast-notification { position: fixed; bottom: 30px; left: 50%; transform: translate(-50%, 20px); background-color: var(--button-bg); color: var(--text-color); padding: 15px 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 10000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; font-weight: bold; white-space: pre-line; text-align: center; }
+        #custom-toast-notification.show { opacity: 1; transform: translate(-50%, 0); }
+        #data-management-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); z-index: 10001; backdrop-filter: blur(5px); }
+        .data-management-modal { background-color: var(--primary-bg); padding: 30px; border-radius: 15px; border: 2px solid var(--button-bg); box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 400px; width: 90%; }
+        .data-management-modal h2 { margin-top: 0; }
+        .data-management-modal p { font-size: 1em; opacity: 0.8; margin-bottom: 25px; line-height: 1.6; }
+        .data-management-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    </style>
+</head>
+<body>
+    <div id="home-screen" class="screen active"><div id="global-currency-display" title="數據管理"><div id="money-display">💰 0</div><div id="diamond-display">💎 0</div></div><h1>迷宮探索</h1><div><button id="start-game-btn" class="button">開始遊戲</button><button id="store-btn" class="button">商店</button></div></div>
+    <div id="level-select-screen" class="screen"><h2>選擇關卡</h2><button id="treasure-hunt-btn" class="button treasure-hunt-btn">🌟 寶藏礦脈 🌟</button><div id="level-select-grid"></div><button id="back-to-home-btn" class="button">返回主頁</button></div>
+    <div id="character-select-screen" class="screen"><h2>選擇你的角色</h2><div id="level-info-display"></div><div id="character-select-grid"></div><p>選擇角色後即可開始遊戲</p><button id="back-to-level-from-char-btn" class="button">返回關卡選擇</button></div>
+    <div id="game-screen" class="screen"><div id="game-container"><div id="vfx-layer"></div><div id="maze"></div><div id="player"></div><div id="in-game-ui"><div class="top-left-ui"><div id="game-stats"><div id="speed-boost-indicator">⚡ 加速中</div><div id="flare-indicator">💡 視野擴大中</div><div class="stat-item" id="timer-display">⏱️ 00:00</div><div class="stat-item" id="game-money-display">💰 0</div></div><div id="carried-loot-display"><div class="loot-item" id="loot-money"></div><div class="loot-item" id="loot-diamonds"></div></div></div><div id="game-actions"><button id="place-bomb-btn" class="button small-button">炸彈(0)</button><button id="use-flare-btn" class="button small-button">照明彈(0)</button><button id="use-phantom-potion-btn" class="button small-button">幻影藥水(0)</button><button id="exit-game-btn" class="button small-button">退出</button></div></div><div id="occupation-bar-container"><div id="occupation-bar"></div></div></div><div id="joystick-container"><div id="joystick-base"><div id="joystick-handle"></div></div></div></div>
+    <div id="win-screen" class="screen"><h1 id="win-message">恭喜過關！</h1><div id="win-rewards"></div><button id="play-again-btn" class="button">回到關卡選擇</button></div>
+    <div id="game-over-screen" class="screen"><h1>遊戲結束</h1><p>你被怪物抓住了！</p><button id="retry-btn" class="button danger">再試一次</button><button id="back-to-menu-btn" class="button">回到關卡選擇</button></div>
+    <div id="store-screen" class="screen"><h1>商店</h1><div id="store-item-grid"><div class="store-item"><div class="store-item-info"><h3>風神祝福</h3><p>移動速度變為兩倍，持續一場遊戲。</p></div><div class="store-item-buy-action"><button id="buy-speed-boost-btn" class="button">💰 500</button><div class="item-quantity-display" id="speed-boost-quantity"></div></div></div><div class="store-item"><div class="store-item-info"><h3>炸彈 (消耗品)</h3><p>放置後可炸死一名接觸的怪物。</p></div><div class="store-item-buy-action"><button id="buy-bomb-btn" class="button">💰 400</button><div class="item-quantity-display" id="bomb-quantity"></div></div></div><div class="store-item"><div class="store-item-info"><h3>炸彈背心 (永久)</h3><p>永久增加你每局遊戲的起始炸彈數量。</p></div><div class="store-item-buy-action"><button id="buy-bomb-pouch-btn" class="button">💎 10</button><div class="item-quantity-display" id="bomb-pouch-quantity"></div></div></div><div class="store-item"><div class="store-item-info"><h3>照明彈 (消耗品)</h3><p>使用後5秒內，視野範圍加倍。</p></div><div class="store-item-buy-action"><button id="buy-flare-btn" class="button">💰 250</button><div class="item-quantity-display" id="flare-quantity"></div></div></div><div class="store-item"><div class="store-item-info"><h3>幻影藥水 (消耗品)</h3><p>使用後8秒內，怪物看不見你。</p></div><div class="store-item-buy-action"><button id="buy-phantom-potion-btn" class="button">💰 350</button><div class="item-quantity-display" id="phantom-potion-quantity"></div></div></div><div class="store-item"><div class="store-item-info"><h3>探險家保險</h3><p>在寶藏礦脈失敗時，可保留50%戰利品。</p></div><div class="store-item-buy-action"><button id="buy-insurance-btn" class="button">💰 150</button><div class="item-quantity-display" id="insurance-quantity"></div></div></div></div><button id="back-to-home-from-store-btn" class="button">返回主頁</button></div>
+    <div id="loading-screen" class="screen"><div class="spinner"></div><p id="loading-message">載入中...</p></div>
+    <div id="custom-toast-notification"></div>
+    <div id="data-management-screen" class="screen"><div class="data-management-modal"><h2>數據管理</h2><p>管理您的遊戲存檔。請謹慎操作，特別是重置與匯入功能！</p><div class="data-management-actions"><button id="export-data-btn" class="button">匯出存檔</button><button id="import-data-btn" class="button">匯入存檔</button><button id="reset-data-btn" class="button danger">重置進度</button></div><button id="close-data-modal-btn" class="button" style="margin-top: 20px; background-color: #7f8c8d;">關閉</button></div><input type="file" id="import-file-input" style="display: none;" accept=".txt"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- 變數宣告區 (完整) ---
+    const screens = { home: document.getElementById('home-screen'), levelSelect: document.getElementById('level-select-screen'), characterSelect: document.getElementById('character-select-screen'), game: document.getElementById('game-screen'), win: document.getElementById('win-screen'), gameOver: document.getElementById('game-over-screen'), loading: document.getElementById('loading-screen'), store: document.getElementById('store-screen'), dataManagement: document.getElementById('data-management-screen') };
+    const mazeEl = document.getElementById("maze"), vfxLayer = document.getElementById("vfx-layer"), playerEl = document.getElementById("player"), gameContainer = document.getElementById("game-container"), levelSelectGrid = document.getElementById("level-select-grid"), moneyDisplayEl = document.getElementById("money-display"), timerDisplayEl = document.getElementById("timer-display"), gameMoneyDisplayEl = document.getElementById("game-money-display"), winRewardsEl = document.getElementById("win-rewards"), occupationBarContainer = document.getElementById("occupation-bar-container"), occupationBar = document.getElementById("occupation-bar");
+    const joystickContainer = document.getElementById("joystick-container"), joystickHandle = document.getElementById("joystick-handle"), levelInfoDisplay = document.getElementById("level-info-display"), speedBoostIndicator = document.getElementById("speed-boost-indicator"), flareIndicator = document.getElementById("flare-indicator");
+    const diamondDisplayEl = document.getElementById("diamond-display");
+    const customToast = document.getElementById('custom-toast-notification');
+    let toastTimeout = null;
+    const buySpeedBoostBtn = document.getElementById("buy-speed-boost-btn"), speedBoostQuantityEl = document.getElementById("speed-boost-quantity");
+    const buyBombBtn = document.getElementById("buy-bomb-btn"), bombQuantityEl = document.getElementById("bomb-quantity");
+    const buyBombPouchBtn = document.getElementById("buy-bomb-pouch-btn"), bombPouchQuantityEl = document.getElementById("bomb-pouch-quantity");
+    const buyFlareBtn = document.getElementById("buy-flare-btn"), flareQuantityEl = document.getElementById("flare-quantity");
+    const buyPhantomPotionBtn = document.getElementById("buy-phantom-potion-btn"), phantomPotionQuantityEl = document.getElementById("phantom-potion-quantity");
+    const buyInsuranceBtn = document.getElementById("buy-insurance-btn"), insuranceQuantityEl = document.getElementById("insurance-quantity");
+    const placeBombBtn = document.getElementById("place-bomb-btn"), useFlareBtn = document.getElementById("use-flare-btn"), usePhantomPotionBtn = document.getElementById("use-phantom-potion-btn");
+    const carriedLootDisplay = document.getElementById('carried-loot-display'), lootMoneyEl = document.getElementById('loot-money'), lootDiamondsEl = document.getElementById('loot-diamonds');
+    
+    // 遊戲狀態與設定 (完整)
+    let gameState = { selectedLevel: null, selectedCharacterSrc: null, mazeData: [], playerPos: { x: 0, y: 0 }, monsters: [], treasures: [], bombsOnField: [], bombsPlacedThisRound: 0 };
+    let gameSession = { timer:0, timerInterval:null, treasureBonus:0, timeBonus:0, occupationTimer:0, currentMoveSpeed: 0, bombsAvailable: 0, carriedLoot: { money: 0, diamonds: 0 }, flaresAvailable: 0, phantomPotionsAvailable: 0, insuranceActive: false, playerInvisible: false, invisibleTimer: null, flareTimer: null, flaresUsedThisRound: 0, phantomPotionsUsedThisRound: 0 };
+    const mazeDesigns = { 1:{n:"新手上路",w:7,h:5,m:1,t:1,b:50,gt:30}, 2:{n:"林間小徑",w:10,h:8,m:2,t:1,b:60,gt:45}, 3:{n:"交叉路口",w:15,h:10,m:3,t:1,b:80,gt:60}, 4:{n:"蜿蜒長廊",w:20,h:12,m:4,t:1,b:100,gt:90}, 5:{n:"錯綜複雜",w:25,h:15,m:5,t:2,b:120,gt:120}, 6:{n:"深度監獄",w:30,h:20,m:6,t:2,b:150,gt:150}, 7:{n:"九曲迴腸",w:35,h:22,m:7,t:2,b:180,gt:180}, 8:{n:"蟻穴迷蹤",w:40,h:25,m:8,t:2,b:220,gt:210}, 9:{n:"無盡迴廊",w:45,h:28,m:10,t:2,b:250,gt:240}, 10:{n:"終極試煉",w:50,h:30,m:12,t:2,b:300,gt:300}, treasure_hunt: {n:"寶藏礦脈",w:25,h:20,m:20,t:30,b:0,gt:240, type:'hunt'} };
+    const SAVE_KEY = "maze_save_data_v10.6"; 
+    let savedData = { clearedLevels:{}, totalMoney:0, totalDiamonds:0, speedBoostActive: false, bombCount: 0, permanentBombBonus: 0, levelRecords: {}, flareCount: 0, phantomPotionCount: 0, insuranceCount: 0 };
+    let playerMovement = { currentDirection: null, queuedDirection: null, moveInterval: null, lastPos:{x:-1, y:-1} };
+    const BASE_PLAYER_MOVE_SPEED = 120, BASE_FOV_RADIUS = 10;
+    const SPEED_BOOST_COST = 500, BOMB_COST = 400, BOMB_POUCH_COST = 10, FLARE_COST = 250, PHANTOM_POTION_COST = 350, INSURANCE_COST = 150;
+    const MONSTER_TIERS = [ {level:1,colorFilter:"hue-rotate(0deg) saturate(0.8)",speed:480}, {level:2,colorFilter:"hue-rotate(90deg) saturate(1.2)",speed:360}, {level:3,colorFilter:"hue-rotate(200deg) saturate(1.5)",speed:240}, {level:4,colorFilter:"hue-rotate(280deg) saturate(2)",speed:150}, {level:5,colorFilter:"hue-rotate(350deg) saturate(2.5)",speed:120} ];
+    let isTouchDevice = false;
+    let insuranceConfirmed = false;
+
+    // --- 核心功能 ---
+    function loadGameData() { const data = localStorage.getItem(SAVE_KEY); const defaultData = { clearedLevels:{}, totalMoney:0, totalDiamonds:0, speedBoostActive: false, bombCount: 0, permanentBombBonus: 0, levelRecords: {}, flareCount: 0, phantomPotionCount: 0, insuranceCount: 0 }; savedData = data ? {...defaultData, ...JSON.parse(data)} : defaultData; updateGlobalCurrencyDisplay(); }
+    function saveGameData() { localStorage.setItem(SAVE_KEY, JSON.stringify(savedData)); updateGlobalCurrencyDisplay(); }
+    function updateGlobalCurrencyDisplay() { moneyDisplayEl.textContent = `💰 ${savedData.totalMoney}`; diamondDisplayEl.textContent = `💎 ${savedData.totalDiamonds}`; }
+    function showToast(message) { if (toastTimeout) clearTimeout(toastTimeout); customToast.innerHTML = message; customToast.classList.add('show'); toastTimeout = setTimeout(() => { customToast.classList.remove('show'); }, 3000); }
+    function showScreen(screenName) { Object.values(screens).forEach(s => s.classList.remove('active')); if (screenName === 'levelSelect') { populateLevelSelect(); } if (screenName === 'store') { populateStore(); } if(screens[screenName]) screens[screenName].classList.add('active'); }
+    function seededRandom(seed){let state=seed%2147483647;if(state<=0)state+=2147483646;return function(){state=state*16807%2147483647;return(state-1)/2147483646}}
+    function showLoading(message="載入中..."){screens.loading.querySelector("#loading-message").textContent=message;screens.loading.style.display="flex"}
+    function hideLoading(){screens.loading.style.display="none"}
+    function exportData() { const dataStr = JSON.stringify(savedData); const encodedData = btoa(unescape(encodeURIComponent(dataStr))); const blob = new Blob([encodedData], { type: "text/plain" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "maze_game_save.txt"; a.click(); URL.revokeObjectURL(url); showToast("存檔已匯出！"); }
+    function importData() { document.getElementById('import-file-input').click(); }
+    function handleFileImport(event) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const decodedData = decodeURIComponent(escape(atob(e.target.result))); const importedSave = JSON.parse(decodedData); if ( 'totalMoney' in importedSave && 'totalDiamonds' in importedSave && 'clearedLevels' in importedSave ) { savedData = importedSave; saveGameData(); showToast("存檔匯入成功！\n遊戲將刷新。"); setTimeout(() => location.reload(), 1500); } else { throw new Error("Invalid save file structure."); } } catch (error) { showToast("錯誤：\n無法讀取或檔案格式不正確。"); } finally { event.target.value = null; } }; reader.readAsText(file); }
+    function resetGameProgress() { if (confirm("警告！\n您確定要重置所有遊戲進度嗎？\n此操作無法復原！")) { localStorage.removeItem(SAVE_KEY); showToast("進度已重置。\n遊戲即將刷新。"); setTimeout(() => location.reload(), 1500); } }
+
+    // --- 商店相關函數 ---
+    function populateStore() { if (savedData.speedBoostActive) { speedBoostQuantityEl.textContent = '✓'; speedBoostQuantityEl.classList.add('active'); speedBoostQuantityEl.style.display = 'flex'; buySpeedBoostBtn.textContent = '已啟用'; buySpeedBoostBtn.disabled = true; } else { speedBoostQuantityEl.style.display = 'none'; speedBoostQuantityEl.classList.remove('active'); buySpeedBoostBtn.textContent = `💰 ${SPEED_BOOST_COST}`; buySpeedBoostBtn.disabled = savedData.totalMoney < SPEED_BOOST_COST; } if (savedData.bombCount > 0) { bombQuantityEl.textContent = savedData.bombCount; bombQuantityEl.style.display = 'flex'; } else { bombQuantityEl.style.display = 'none'; } buyBombBtn.disabled = savedData.totalMoney < BOMB_COST; bombPouchQuantityEl.textContent = `+${savedData.permanentBombBonus}`; bombPouchQuantityEl.style.display = savedData.permanentBombBonus > 0 ? 'flex' : 'none'; buyBombPouchBtn.disabled = savedData.totalDiamonds < BOMB_POUCH_COST; if (savedData.flareCount > 0) { flareQuantityEl.textContent = savedData.flareCount; flareQuantityEl.style.display = 'flex'; } else { flareQuantityEl.style.display = 'none'; } buyFlareBtn.disabled = savedData.totalMoney < FLARE_COST; if (savedData.phantomPotionCount > 0) { phantomPotionQuantityEl.textContent = savedData.phantomPotionCount; phantomPotionQuantityEl.style.display = 'flex'; } else { phantomPotionQuantityEl.style.display = 'none'; } buyPhantomPotionBtn.disabled = savedData.totalMoney < PHANTOM_POTION_COST; if (savedData.insuranceCount > 0) { insuranceQuantityEl.textContent = savedData.insuranceCount; insuranceQuantityEl.style.display = 'flex'; } else { insuranceQuantityEl.style.display = 'none'; } buyInsuranceBtn.disabled = savedData.totalMoney < INSURANCE_COST; }
+    function buySpeedBoost() { if (savedData.totalMoney >= SPEED_BOOST_COST && !savedData.speedBoostActive) { savedData.totalMoney -= SPEED_BOOST_COST; savedData.speedBoostActive = true; saveGameData(); populateStore(); showToast('購買「風神祝福」成功！'); } }
+    function buyBomb() { if (savedData.totalMoney >= BOMB_COST) { savedData.totalMoney -= BOMB_COST; savedData.bombCount++; saveGameData(); populateStore(); showToast(`購買炸彈成功！\n庫存: ${savedData.bombCount}`); } }
+    function buyBombPouch() { if (savedData.totalDiamonds >= BOMB_POUCH_COST) { savedData.totalDiamonds -= BOMB_POUCH_COST; savedData.permanentBombBonus++; saveGameData(); populateStore(); showToast(`升級炸彈背心！\n永久加成: +${savedData.permanentBombBonus}`); } }
+    function buyFlare() { if (savedData.totalMoney >= FLARE_COST) { savedData.totalMoney -= FLARE_COST; savedData.flareCount++; saveGameData(); populateStore(); showToast(`購買照明彈成功！\n庫存: ${savedData.flareCount}`); } }
+    function buyPhantomPotion() { if (savedData.totalMoney >= PHANTOM_POTION_COST) { savedData.totalMoney -= PHANTOM_POTION_COST; savedData.phantomPotionCount++; saveGameData(); populateStore(); showToast(`購買幻影藥水成功！\n庫存: ${savedData.phantomPotionCount}`); } }
+    function buyInsurance() { if (savedData.totalMoney >= INSURANCE_COST) { savedData.totalMoney -= INSURANCE_COST; savedData.insuranceCount++; saveGameData(); populateStore(); showToast(`購買探險家保險成功！\n庫存: ${savedData.insuranceCount}`); } }
+
+    // --- 遊戲內邏輯 ---
+    function useFlare() {
+        if (gameSession.flaresAvailable <= 0 || gameSession.flareTimer) return;
+        gameSession.flaresAvailable--;
+        gameSession.flaresUsedThisRound++;
+        showToast("使用照明彈！視野擴大！");
+        // --- MODIFICATION START ---
+        flareIndicator.style.visibility = 'visible';
+        flareIndicator.style.opacity = '1';
+        clearTimeout(gameSession.flareTimer);
+        gameSession.flareTimer = setTimeout(() => {
+            flareIndicator.style.visibility = 'hidden';
+            flareIndicator.style.opacity = '0';
+            // --- MODIFICATION END ---
+            gameSession.flareTimer = null;
+            computeFov();
+            updateFovDisplay();
+            updateUseItemButtons();
+        }, 5000);
+        computeFov();
+        updateFovDisplay();
+        updateUseItemButtons();
+    }
+    function breakInvisibility() { if (!gameSession.playerInvisible) return; clearTimeout(gameSession.invisibleTimer); gameSession.playerInvisible = false; playerEl.classList.remove('invisible'); showToast("隱形效果消失了。"); updateUseItemButtons(); }
+    function usePhantomPotion() { if (gameSession.phantomPotionsAvailable <= 0 || gameSession.playerInvisible) return; gameSession.phantomPotionsAvailable--; gameSession.phantomPotionsUsedThisRound++; showToast("你進入了隱形狀態！"); gameSession.playerInvisible = true; playerEl.classList.add('invisible'); clearTimeout(gameSession.invisibleTimer); gameSession.invisibleTimer = setTimeout(breakInvisibility, 8000); updateUseItemButtons(); }
+    function placeBomb() { if (gameSession.bombsAvailable <= 0 || !screens.game.classList.contains('active')) return; const pos = gameState.playerPos; if (gameState.bombsOnField.some(b => b.x === pos.x && b.y === pos.y)) return; breakInvisibility(); gameSession.bombsAvailable--; gameState.bombsPlacedThisRound++; updateUseItemButtons(); const newBomb = { x: pos.x, y: pos.y }; gameState.bombsOnField.push(newBomb); const cellSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-size').trim()); const bombEl = document.createElement('div'); bombEl.className = 'item-cell'; bombEl.id = `bomb-${newBomb.x}-${newBomb.y}`; bombEl.textContent = '💣'; bombEl.style.transform = `translate(${newBomb.x * cellSize}px, ${newBomb.y * cellSize}px)`; mazeEl.appendChild(bombEl); if (visibleCells.has(`${newBomb.x},${newBomb.y}`)) { setTimeout(() => bombEl.classList.add('visible'), 50); } }
+    function updateUseItemButtons() { placeBombBtn.textContent = `炸彈(${gameSession.bombsAvailable})`; placeBombBtn.disabled = gameSession.bombsAvailable <= 0; useFlareBtn.textContent = `照明彈(${gameSession.flaresAvailable})`; useFlareBtn.disabled = gameSession.flaresAvailable <= 0 || !!gameSession.flareTimer; usePhantomPotionBtn.textContent = `幻影藥水(${gameSession.phantomPotionsAvailable})`; usePhantomPotionBtn.disabled = gameSession.phantomPotionsAvailable <= 0 || gameSession.playerInvisible; }
+    function handleEndGameItemSettlement() { const consumableBombsUsed = Math.max(0, gameState.bombsPlacedThisRound - savedData.permanentBombBonus); savedData.bombCount = Math.max(0, savedData.bombCount - consumableBombsUsed); savedData.flareCount = Math.max(0, savedData.flareCount - gameSession.flaresUsedThisRound); savedData.phantomPotionCount = Math.max(0, savedData.phantomPotionCount - gameSession.phantomPotionsUsedThisRound); if (savedData.speedBoostActive) { savedData.speedBoostActive = false; } }
+    function updateCarriedLootDisplay() { const { money, diamonds } = gameSession.carriedLoot; const hasLoot = money > 0 || diamonds > 0; carriedLootDisplay.style.display = hasLoot ? 'flex' : 'none'; lootMoneyEl.innerHTML = money > 0 ? `💰<span>${money}</span>` : ''; lootDiamondsEl.innerHTML = diamonds > 0 ? `💎<span>${diamonds}</span>` : ''; }
+    function handleOccupationAndCollection() { const currentPosKey = `${gameState.playerPos.x},${gameState.playerPos.y}`; const treasure = gameState.treasures.find(t => !t.opened && `${t.pos.x},${t.pos.y}` === currentPosKey); if (treasure) { treasure.opened = true; let foundMessage = ""; if (mazeDesigns[gameState.selectedLevel].type === 'hunt') { const roll = Math.random(); if (roll < 0.1) { gameSession.carriedLoot.diamonds++; foundMessage = "💎 撿到了 1 顆鑽石！"; } else { const bonusMoney = 200 + Math.floor(Math.random() * 301); gameSession.carriedLoot.money += bonusMoney; foundMessage = `💰 撿到了 ${bonusMoney} 金幣！`; } updateCarriedLootDisplay(); } else { gameSession.treasureBonus += treasure.value; updateGameMoneyDisplay(); foundMessage = `💰 你找到了 ${treasure.value} 金幣！`; } showToast(foundMessage); const el = document.getElementById(`treasure-${treasure.id}`); if (el) el.classList.add("opened"); } if (gameState.mazeData[gameState.playerPos.y]?.[gameState.playerPos.x] === 'E') { gameSession.occupationTimer += gameSession.currentMoveSpeed; occupationBarContainer.classList.add("visible"); const progress = Math.min(gameSession.occupationTimer / 3000 * 100, 100); occupationBar.style.width = `${progress}%`; if(gameSession.occupationTimer >= 3000){ winGame(); } } else { gameSession.occupationTimer = 0; occupationBarContainer.classList.remove("visible"); occupationBar.style.width = '0%'; } }
+    function updateGameMoneyDisplay(){ gameMoneyDisplayEl.textContent = `💰 ${gameSession.treasureBonus}`; }
+    function createExplosion(pos) { const explosion = document.createElement('div'); explosion.className = 'explosion'; vfxLayer.appendChild(explosion); const cellSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-size').trim()); explosion.style.top = `${pos.y * cellSize + cellSize / 2}px`; explosion.style.left = `${pos.x * cellSize + cellSize / 2}px`; setTimeout(() => explosion.remove(), 400); }
+    
+    // --- 遊戲流程 ---
+    function winGame() { clearGameListeners(); const levelConf = mazeDesigns[gameState.selectedLevel]; let firstClearDiamond = 0; if (levelConf.type !== 'hunt' && !savedData.clearedLevels[gameState.selectedLevel]) { firstClearDiamond = 1; savedData.totalDiamonds += 1; } if(levelConf.type === 'hunt') { const { money, diamonds } = gameSession.carriedLoot; savedData.totalMoney += money; savedData.totalDiamonds += diamonds; let rewardsHTML = "<h3>成功帶出戰利品！</h3>"; if (money > 0) rewardsHTML += `<p><span>金幣:</span> <span>+ ${money} 💰</span></p>`; if (diamonds > 0) rewardsHTML += `<p><span>鑽石:</span> <span>+ ${diamonds} 💎</span></p>`; if(money === 0 && diamonds === 0) rewardsHTML += `<p>雖然什麼都沒帶出來...</p>` ;winRewardsEl.innerHTML = rewardsHTML; } else { const baseBonus = levelConf.b; if(levelConf.gt > 0 && gameSession.timer <= levelConf.gt) { gameSession.timeBonus = Math.floor(baseBonus * 1.5); } const totalWin = baseBonus + gameSession.timeBonus + gameSession.treasureBonus; savedData.totalMoney += totalWin; winRewardsEl.innerHTML = `<p><span>基礎獎勵:</span> <span>+ ${baseBonus} 💰</span></p><p><span>限時獎勵:</span> <span>+ ${gameSession.timeBonus} 💰</span></p><p><span>寶箱獎勵:</span> <span>+ ${gameSession.treasureBonus} 💰</span></p><hr><p><span>總計獲得:</span> <span>+ ${totalWin} 💰</span></p>`; if (firstClearDiamond > 0) { winRewardsEl.innerHTML += `<p class="diamond-reward">首次通關獎勵: +1 💎</p>`; } } savedData.clearedLevels[gameState.selectedLevel] = true; handleEndGameItemSettlement(); saveGameData(); showScreen("win"); }
+    function gameOver() { clearGameListeners(); if (gameState.selectedLevel === 'treasure_hunt' && gameSession.insuranceActive) { const retainedMoney = Math.floor(gameSession.carriedLoot.money * 0.5); const retainedDiamonds = Math.floor(gameSession.carriedLoot.diamonds * 0.5); savedData.totalMoney += retainedMoney; savedData.totalDiamonds += retainedDiamonds; showToast(`保險生效！\n你保留了 50% 的戰利品：\n💰 ${retainedMoney} | 💎 ${retainedDiamonds}`); } handleEndGameItemSettlement(); saveGameData(); showScreen("gameOver"); }
+    function exitGame(isRetry = false) { clearGameListeners(); handleEndGameItemSettlement(); saveGameData(); if (isRetry) { showLoading("正在重新生成迷宮..."); setTimeout(startGame, 50); } else { showScreen('levelSelect'); } }
+    function startGame() {
+        clearGameListeners();
+        gameState.bombsOnField = [];
+        gameState.bombsPlacedThisRound = 0;
+        mazeEl.querySelectorAll('.item-cell, .treasure, .monster').forEach(el => el.remove());
+        vfxLayer.innerHTML = '';
+        const isHunt = mazeDesigns[gameState.selectedLevel].type === 'hunt';
+        gameMoneyDisplayEl.style.display = isHunt ? 'none' : 'block';
+        carriedLootDisplay.style.display = 'none';
+        gameSession = { timer: 0, timerInterval: null, timeBonus: 0, treasureBonus: 0, occupationTimer: 0, currentMoveSpeed: savedData.speedBoostActive ? (BASE_PLAYER_MOVE_SPEED / 2) : BASE_PLAYER_MOVE_SPEED, bombsAvailable: savedData.bombCount + savedData.permanentBombBonus, carriedLoot: { money: 0, diamonds: 0 }, flaresAvailable: savedData.flareCount, phantomPotionsAvailable: savedData.phantomPotionCount, insuranceActive: false, playerInvisible: false, invisibleTimer: null, flareTimer: null, flaresUsedThisRound: 0, phantomPotionsUsedThisRound: 0 };
+        if (isHunt && insuranceConfirmed) {
+            gameSession.insuranceActive = true;
+            insuranceConfirmed = false;
+        }
+        playerMovement = { currentDirection: null, queuedDirection: null, moveInterval: null, lastPos: {x:-1, y:-1} };
+        
+        // --- MODIFICATION START ---
+        if (savedData.speedBoostActive) {
+            speedBoostIndicator.style.visibility = 'visible';
+            speedBoostIndicator.style.opacity = '1';
+        } else {
+            speedBoostIndicator.style.visibility = 'hidden';
+            speedBoostIndicator.style.opacity = '0';
+        }
+        flareIndicator.style.visibility = 'hidden';
+        flareIndicator.style.opacity = '0';
+        // --- MODIFICATION END ---
+
+        updateUseItemButtons();
+        occupationBar.style.width = '0%';
+        occupationBarContainer.classList.remove('visible');
+        playerEl.style.backgroundImage = `url(${gameState.selectedCharacterSrc})`;
+        renderMaze();
+        computeFov();
+        updateFovDisplay();
+        showScreen('game');
+        centerViewOnPlayer(false);
+        updateGameMoneyDisplay();
+        hideLoading();
+        document.addEventListener('keydown', handleGameKeyDown);
+        document.addEventListener('keyup', handleGameKeyUp);
+        addJoystickListeners();
+        playerMovement.moveInterval = setInterval(mainGameLoop, gameSession.currentMoveSpeed);
+        startGameTimer();
+    }
+    
+    // --- 控制與主循環 ---
+    function mainGameLoop() { if (playerMovement.queuedDirection && canMove(gameState.playerPos, playerMovement.queuedDirection)) { playerMovement.currentDirection = playerMovement.queuedDirection; playerMovement.queuedDirection = null; } if (canMove(gameState.playerPos, playerMovement.currentDirection)) { let newPos = { ...gameState.playerPos }; const move = playerMovement.currentDirection; if (move === 'up') newPos.y--; else if (move === 'down') newPos.y++; else if (move === 'left') newPos.x--; else if (move === 'right') newPos.x++; gameState.playerPos = newPos; centerViewOnPlayer(true); } else { playerMovement.currentDirection = null; } if (playerMovement.lastPos.x !== gameState.playerPos.x || playerMovement.lastPos.y !== gameState.playerPos.y) { if (!gameSession.flareTimer) { computeFov(); updateFovDisplay(); } playerMovement.lastPos = {...gameState.playerPos}; } handleOccupationAndCollection(); const cellSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-size').trim()); for (let i = gameState.monsters.length - 1; i >= 0; i--) { const monster = gameState.monsters[i]; if (!monster) continue; if (monster.state === 'DYING') continue; if (!monster.moveCooldown) monster.moveCooldown = 0; monster.moveCooldown += gameSession.currentMoveSpeed; if (monster.moveCooldown >= monster.speed) { updateSingleMonsterAI(monster, i); const monsterEl = document.getElementById(`monster-${monster.id}`); if (monsterEl) { monsterEl.style.transform = `translate(${monster.pos.x * cellSize}px, ${monster.pos.y * cellSize}px)`; } monster.moveCooldown = 0; } } for (const monster of gameState.monsters) { if (monster.state !== 'DYING' && monster.pos.x === gameState.playerPos.x && monster.pos.y === gameState.playerPos.y) { gameOver(); return; } } }
+    function updateSingleMonsterAI(monster, index) { const monsterEl = document.getElementById(`monster-${monster.id}`); const playerVisible = isPlayerVisible(monster.pos, gameState.playerPos); switch (monster.state) { case "IDLE": if(playerVisible) monster.state="CHASING"; break; case "CHASING": if(playerVisible) { monster.lastKnownPlayerPos={...gameState.playerPos} } else { monster.state="SEARCHING" } break; case "SEARCHING": if(playerVisible) { monster.state="CHASING" } else if(monster.lastKnownPlayerPos && monster.pos.x===monster.lastKnownPlayerPos.x && monster.pos.y===monster.lastKnownPlayerPos.y) { monster.state="RETURNING" } break; case "RETURNING": if(monster.pos.x===monster.spawnPos.x&&monster.pos.y===monster.spawnPos.y) { monster.state="IDLE" } break; } let targetPos = null; if(monster.state==="CHASING") targetPos = gameState.playerPos; else if(monster.state==="SEARCHING") targetPos = monster.lastKnownPlayerPos; else if(monster.state==="RETURNING") targetPos = monster.spawnPos; if (targetPos) { const path = findPath(monster.pos, targetPos); if (path && path.length > 1) { const nextPos = path[1]; const bombIndex = gameState.bombsOnField.findIndex(b => b.x === nextPos.x && b.y === nextPos.y); if (bombIndex !== -1) { const bombData = gameState.bombsOnField.splice(bombIndex, 1)[0]; const bombEl = document.getElementById(`bomb-${bombData.x}-${bombData.y}`); createExplosion(bombData); if (bombEl) bombEl.remove(); if (monsterEl) { monster.state = 'DYING'; monsterEl.classList.add('dying'); setTimeout(() => { const idx = gameState.monsters.findIndex(m => m.id === monster.id); if (idx !== -1) gameState.monsters.splice(idx, 1); monsterEl.remove(); }, 500); } return; } monster.pos = nextPos; } } }
+    function handleGameKeyDown(e) { const moveKeyMap={ArrowUp:"up",w:"up",ArrowDown:"down",s:"down",ArrowLeft:"left",a:"left",ArrowRight:"right",d:"right"}; const actionKeyMap={" ":"bomb", f:"flare", g:"phantom"}; const moveDirection = moveKeyMap[e.key]; const action = actionKeyMap[e.key]; if (moveDirection) { e.preventDefault(); playerMovement.queuedDirection = moveDirection; if (!playerMovement.currentDirection) playerMovement.currentDirection = moveDirection; } else if (action === 'bomb') { e.preventDefault(); placeBomb(); } else if (action === 'flare') { e.preventDefault(); useFlare(); } else if (action === 'phantom') { e.preventDefault(); usePhantomPotion(); } }
+    function handleGameKeyUp(e) { const moveKeyMap={ArrowUp:"up",w:"up",ArrowDown:"down",s:"down",ArrowLeft:"left",a:"left",ArrowRight:"right",d:"right"}; const direction=moveKeyMap[e.key]; if(direction === playerMovement.queuedDirection) playerMovement.queuedDirection=null; if(direction === playerMovement.currentDirection) playerMovement.currentDirection = playerMovement.queuedDirection; }
+
+    // --- 所有剩餘的輔助函數 ---
+    function formatTime(seconds){if(seconds===null||seconds===undefined)return"N/A";const minutes=Math.floor(seconds/60).toString().padStart(2,"0");const secs=(seconds%60).toString().padStart(2,"0");return`${minutes}:${secs}`}
+    function updateLevelInfoDisplay(){const level=gameState.selectedLevel;if(!level||!mazeDesigns[level])return;const design=mazeDesigns[level];const record=savedData.levelRecords[level];const fastestTime=record?record.fastestTime:undefined;levelInfoDisplay.innerHTML=`<p><span>關卡名稱</span> <span>${design.n}</span></p><p><span>迷宮大小</span> <span>${design.w*2+1}x${design.h*2+1}</span></p><p><span>怪物數量</span> <span>${design.m}</span></p><p><span>寶箱數量</span> <span>${design.t}</span></p><p><span>最快紀錄</span> <span>${design.type==='hunt'?'N/A':formatTime(fastestTime)}</span></p>`}
+    function populateLevelSelect(){levelSelectGrid.innerHTML="";Object.keys(mazeDesigns).filter(l=>l!=='treasure_hunt').forEach(level=>{const design=mazeDesigns[level];const btn=document.createElement("button");btn.className="level-select-btn button";btn.dataset.level=level;btn.textContent=`第 ${level} 關: ${design.n}`;if(savedData.clearedLevels[level]){const mark=document.createElement("span");mark.className="cleared-mark";mark.textContent="🌟";btn.appendChild(mark)}btn.addEventListener("click",()=>{gameState.selectedLevel=level;populateCharacters();updateLevelInfoDisplay();showScreen("characterSelect")});levelSelectGrid.appendChild(btn)})}
+    function populateCharacters(){const grid=document.getElementById("character-select-grid");grid.innerHTML="";const styles=["adventurer","avataaars","big-ears","fun-emoji","icons","identicon","miniavs","pixel-art","shapes","thumbs"];styles.forEach(style=>{const seed=Math.random().toString(36).substring(7);const imgUrl=`https://api.dicebear.com/8.x/${style}/svg?seed=${seed}&radius=50`;const charDiv=document.createElement("img");charDiv.src=imgUrl;charDiv.classList.add("character-option");charDiv.addEventListener("click",()=>{grid.querySelectorAll(".character-option").forEach(el=>el.classList.remove("selected"));charDiv.classList.add("selected");gameState.selectedCharacterSrc=imgUrl;showLoading("正在生成迷宮...");setTimeout(startGame,50)});grid.appendChild(charDiv)})}
+    function centerViewOnPlayer(animated=!0){const cellSize=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-size").trim());const containerWidth=gameContainer.clientWidth;const containerHeight=gameContainer.clientHeight;const mazeX=-gameState.playerPos.x*cellSize+containerWidth/2-cellSize/2;const mazeY=-gameState.playerPos.y*cellSize+containerHeight/2-cellSize/2;const transformValue=`translate(${mazeX}px, ${mazeY}px)`;const transitionStyle=animated?`transform ${gameSession.currentMoveSpeed}ms linear`:"none";mazeEl.style.transition=transitionStyle;vfxLayer.style.transition=transitionStyle;mazeEl.style.transform=transformValue;vfxLayer.style.transform=transformValue;}
+    let visibleCells=new Set;
+    function computeFov() { visibleCells.clear(); if (gameSession.flareTimer) { computeSimpleFov(); } else { computeShadowcastFov(); } }
+    function computeSimpleFov() { const radius = BASE_FOV_RADIUS * 2; const radiusSq = radius * radius; const { x: playerX, y: playerY } = gameState.playerPos; for (let y = playerY - radius; y <= playerY + radius; y++) { for (let x = playerX - radius; x <= playerX + radius; x++) { if (x < 0 || y < 0 || y >= gameState.mazeData.length || x >= gameState.mazeData[0].length) continue; const dx = x - playerX; const dy = y - playerY; if (dx * dx + dy * dy < radiusSq) { visibleCells.add(`${x},${y}`); } } } }
+    function computeShadowcastFov(){visibleCells.add(`${gameState.playerPos.x},${gameState.playerPos.y}`);const octants=[{xx:1,xy:0,yx:0,yy:1},{xx:0,xy:1,yx:1,yy:0},{xx:0,xy:-1,yx:1,yy:0},{xx:-1,xy:0,yx:0,yy:1},{xx:-1,xy:0,yx:0,yy:-1},{xx:0,xy:-1,yx:-1,yy:0},{xx:0,xy:1,yx:-1,yy:0},{xx:1,xy:0,yx:0,yy:-1}];octants.forEach(octant=>{castLight(1,1,0,octant.xx,octant.xy,octant.yx,octant.yy)})}
+    function castLight(row,start,end,xx,xy,yx,yy){let newStart=0;if(start<end){return}let radius_sq=BASE_FOV_RADIUS*BASE_FOV_RADIUS;for(let j=row;j<=BASE_FOV_RADIUS;j++){let dx=-j-1;let dy=-j;let blocked=!1;while(dx<=0){dx++;let mapX=gameState.playerPos.x+dx*xx+dy*xy;let mapY=gameState.playerPos.y+dx*yx+dy*yy;if(mapX<0||mapX>=gameState.mazeData[0].length||mapY<0||mapY>=gameState.mazeData.length){continue}let lSlope=(dx-.5)/(dy+.5);let rSlope=(dx+.5)/(dy-.5);if(start<rSlope){continue}else if(end>lSlope){break}if(dx*dx+dy*dy<radius_sq){visibleCells.add(`${mapX},${mapY}`)}let currentCellIsWall=gameState.mazeData[mapY]?.[mapX]==="W";if(blocked){if(currentCellIsWall){newStart=rSlope;continue}else{blocked=!1;start=newStart}}else{if(currentCellIsWall){blocked=!0;castLight(j+1,start,lSlope,xx,xy,yx,yy);newStart=rSlope}}}if(blocked){break}}}
+    function updateFovDisplay(){const mazeWidth=gameState.mazeData[0].length;mazeEl.querySelectorAll(".grid-cell.visible").forEach(el=>el.classList.remove("visible"));visibleCells.forEach(key=>{const[x,y]=key.split(",").map(Number);const index=y*mazeWidth+x;const cell=mazeEl.children[index];if(cell){cell.classList.add("visible")}});gameState.monsters.forEach(m=>{const el=document.getElementById(`monster-${m.id}`);if(el)el.classList.toggle("visible",visibleCells.has(`${m.pos.x},${m.pos.y}`))});gameState.treasures.forEach(t=>{const el=document.getElementById(`treasure-${t.id}`);if(el)el.classList.toggle("visible",visibleCells.has(`${t.pos.x},${t.pos.y}`))});gameState.bombsOnField.forEach(item=>{const itemEl=document.getElementById(`bomb-${item.x}-${item.y}`);if(itemEl)itemEl.classList.toggle('visible',visibleCells.has(`${item.x},${item.y}`))});}
+    function renderMaze(){mazeEl.innerHTML="";vfxLayer.innerHTML="";gameState.monsters=[];gameState.treasures=[];const levelConfig=mazeDesigns[gameState.selectedLevel];gameState.mazeData=generateMaze(levelConfig.w,levelConfig.h,parseInt(gameState.selectedLevel) || Math.random()*10000);placeTreasuresAndMonsters();const mazeWidth=gameState.mazeData[0].length;const cellSize=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-size").trim());mazeEl.style.gridTemplateColumns=`repeat(${mazeWidth}, ${cellSize}px)`;let content="";gameState.mazeData.forEach((row,y)=>{row.forEach((cellType,x)=>{let cellClass="";if(cellType==="S"){gameState.playerPos={x,y};cellClass="start"}else if(cellType==="W")cellClass="wall";else if(cellType==="P"||cellType==="T"||cellType==="M")cellClass="path";else if(cellType==="E")cellClass="end";content+=`<div class="grid-cell ${cellClass}"></div>`})});mazeEl.innerHTML=content;gameState.treasures.forEach(treasure=>{const el=document.createElement("div");el.id=`treasure-${treasure.id}`;el.className="treasure";el.style.backgroundImage=`url(https://labs.phaser.io/assets/sprites/crate.png)`;el.style.transform=`translate(${treasure.pos.x*cellSize}px, ${treasure.pos.y*cellSize}px)`;mazeEl.appendChild(el)});gameState.monsters.forEach(monster=>{const el=document.createElement("div");el.id=`monster-${monster.id}`;el.className="monster";el.style.backgroundImage=`url(https://api.dicebear.com/8.x/bottts-neutral/svg?seed=${monster.id}&radius=8&backgroundColor=d1d1d1)`;el.style.transform=`translate(${monster.pos.x*cellSize}px, ${monster.pos.y*cellSize}px)`;el.style.filter=monster.colorFilter;mazeEl.appendChild(el)})}
+    function placeTreasuresAndMonsters() { const rng = seededRandom(parseInt(gameState.selectedLevel) || Math.random()*10000); const levelConf = mazeDesigns[gameState.selectedLevel]; const allDeadEnds = []; for (let y = 1; y < gameState.mazeData.length - 1; y++) { for (let x = 1; x < gameState.mazeData[y].length - 1; x++) { if (gameState.mazeData[y][x] === 'P') { let wallCount = 0; if (gameState.mazeData[y-1][x] === 'W') wallCount++; if (gameState.mazeData[y+1][x] === 'W') wallCount++; if (gameState.mazeData[y][x-1] === 'W') wallCount++; if (gameState.mazeData[y][x+1] === 'W') wallCount++; if (wallCount >= 3) { if(getDistance({ x, y }, { x:1, y:1 }) > 5) { const depth = findPath({x, y}, {x: 1, y: 1})?.length || 0; allDeadEnds.push({pos: {x,y}, depth}); }} } } } allDeadEnds.sort((a,b)=>b.depth-a.depth); const treasurePlacedAt = new Set(); for (let i = 0; i < levelConf.t && i < allDeadEnds.length; i++) { const pos=allDeadEnds[i].pos; gameState.mazeData[pos.y][pos.x]="T"; gameState.treasures.push({id: i, pos: pos, opened: false, value: (50+Math.floor(levelConf.b/2))*10}); treasurePlacedAt.add(`${pos.x},${pos.y}`); } let monsterSpawns = [...allDeadEnds].sort(()=>rng()-0.5); for (let i = 0; i < levelConf.m && i < monsterSpawns.length; i++) { const spawnPoint=monsterSpawns[i]; const isNearTreasure = Array.from(treasurePlacedAt).some(tPosStr => { const [tx,ty] = tPosStr.split(',').map(Number); return getDistance(spawnPoint.pos, {x:tx, y:ty}) < 5; }); const levelNum = parseInt(gameState.selectedLevel); const difficultyFactor = isNaN(levelNum) ? 7 : levelNum; let tierIndex = Math.floor(rng() * Math.min(difficultyFactor / 1.8, MONSTER_TIERS.length)); if(isNearTreasure) { tierIndex = Math.min(tierIndex + 2, MONSTER_TIERS.length - 1); } const tier = MONSTER_TIERS[tierIndex]; gameState.monsters.push({...tier, id:i, pos:{...spawnPoint.pos}, spawnPos:{...spawnPoint.pos}, state:'IDLE', lastKnownPlayerPos:null}); } }
+    function canMove(pos,direction){if(!direction)return false; let newPos={...pos};if(direction==="up")newPos.y--;else if(direction==="down")newPos.y++;else if(direction==="left")newPos.x--;else if(direction==="right")newPos.x++;const targetCell=gameState.mazeData[newPos.y]?.[newPos.x];return targetCell&&targetCell!=="W"}
+    function generateMaze(width,height,seed){const rng=seededRandom(seed);const grid=Array.from({length:height*2+1},()=>Array(width*2+1).fill("W"));function carve(cx,cy){const directions=["N","S","E","W"].sort(()=>rng()-.5);for(const direction of directions){const[dx,dy]={N:[0,-2],S:[0,2],E:[2,0],W:[-2,0]}[direction];const nx=cx+dx,ny=cy+dy;if(ny>=0&&ny<height*2+1&&nx>=0&&nx<width*2+1&&grid[ny][nx]==="W"){grid[ny-dy/2][nx-dx/2]="P";grid[ny][nx]="P";carve(nx,ny)}}}grid[1][1]="P";carve(1,1);grid[1][1]="S";grid[height*2-1][width*2-1]="E";return grid}
+    function getDistance(pos1,pos2){return Math.sqrt(Math.pow(pos1.x-pos2.x,2)+Math.pow(pos1.y-pos2.y,2))}
+    function findPath(start,end){const queue=[[start]];const visited=new Set([`${start.x},${start.y}`]);const directions=["up","down","left","right"];while(queue.length>0){const path=queue.shift();const pos=path[path.length-1];if(pos.x===end.x&&pos.y===end.y)return path;for(const dir of directions){let nextPos={...pos};if(dir==="up")nextPos.y--;else if(dir==="down")nextPos.y++;else if(dir==="left")nextPos.x--;else if(dir==="right")nextPos.x++;const key=`${nextPos.x},${nextPos.y}`;if(!visited.has(key)&&canMove(pos,dir)){visited.add(key);const newPath=[...path,nextPos];queue.push(newPath)}}}return null}
+    function isPlayerVisible(monsterPos,playerPos){if(gameSession.playerInvisible)return!1;const radius = gameSession.flareTimer ? BASE_FOV_RADIUS * 2 : BASE_FOV_RADIUS; if(getDistance(monsterPos,playerPos)>radius)return!1;let x0=monsterPos.x,y0=monsterPos.y;const x1=playerPos.x,y1=playerPos.y;const dx=Math.abs(x1-x0),sx=x0<x1?1:-1;const dy=-Math.abs(y1-y0),sy=y0<y1?1:-1;let err=dx+dy,e2;while(!0){if(gameState.mazeData[y0]?.[x0]==="W")return!1;if(x0===x1&&y0===y1)break;e2=2*err;if(e2>=dy){err+=dy;x0+=sx}if(e2<=dx){err+=dx;y0+=sy}}return!0}
+    let isJoystickDragging=!1;let joystickOrigin={x:0,y:0};let maxJoystickRadius=0;function joystickTouchStart(e){e.preventDefault();isJoystickDragging=!0;const rect=joystickContainer.getBoundingClientRect();joystickOrigin={x:rect.left+rect.width/2,y:rect.top+rect.height/2};maxJoystickRadius=joystickContainer.offsetWidth/2-joystickHandle.offsetWidth/2;joystickTouchMove(e)}
+    function joystickTouchMove(e){if(!isJoystickDragging)return;e.preventDefault();const touch=e.touches[0];let dx=touch.clientX-joystickOrigin.x;let dy=touch.clientY-joystickOrigin.y;const distance=Math.sqrt(dx*dx+dy*dy);if(distance>maxJoystickRadius){dx=dx/distance*maxJoystickRadius;dy=dy/distance*maxJoystickRadius}joystickHandle.style.transform=`translate(-50%, -50%) translate(${dx}px, ${dy}px)`;let direction=null;if(distance<20){direction=null} else {if(Math.abs(dx)>Math.abs(dy)){direction=dx>0?"right":"left"}else{direction=dy>0?"down":"up"}}playerMovement.queuedDirection=direction;if(!playerMovement.currentDirection)playerMovement.currentDirection=direction;}
+    function joystickTouchEnd(e){if(!isJoystickDragging)return;e.preventDefault();isJoystickDragging=!1;joystickHandle.style.transform="translate(-50%, -50%)";playerMovement.queuedDirection=null; playerMovement.currentDirection=null;}
+    function addJoystickListeners(){if(!isTouchDevice)return;joystickContainer.style.display="block";joystickContainer.addEventListener("touchstart",joystickTouchStart,{passive:!1});document.addEventListener("touchmove",joystickTouchMove,{passive:!1});document.addEventListener("touchend",joystickTouchEnd,{passive:!1});document.addEventListener("touchcancel",joystickTouchEnd,{passive:!1})}
+    function removeJoystickListeners(){if(!isTouchDevice)return;joystickContainer.style.display="none";joystickContainer.removeEventListener("touchstart",joystickTouchStart);document.removeEventListener("touchmove",joystickTouchMove);document.removeEventListener("touchend",joystickTouchEnd);document.removeEventListener("touchcancel",joystickTouchEnd)}
+    function clearGameListeners(){clearInterval(playerMovement.moveInterval);clearInterval(gameSession.timerInterval);clearTimeout(gameSession.invisibleTimer);clearTimeout(gameSession.flareTimer);document.removeEventListener("keydown",handleGameKeyDown);document.removeEventListener("keyup",handleGameKeyUp);removeJoystickListeners()}
+    function startGameTimer(){const goldTime=mazeDesigns[gameState.selectedLevel]?.gt;gameSession.timerInterval=setInterval(()=>{gameSession.timer++;const minutes=Math.floor(gameSession.timer/60).toString().padStart(2,"0");const seconds=(gameSession.timer%60).toString().padStart(2,"0");timerDisplayEl.textContent=`⏱️ ${minutes}:${seconds}`;if (goldTime > 0) { timerDisplayEl.classList.toggle("bonus", gameSession.timer <= goldTime); } },1000)}
+    
+    // --- 初始化與事件監聽 ---
+    document.getElementById('start-game-btn').addEventListener('click',()=>showScreen('levelSelect'));
+    document.getElementById('store-btn').addEventListener('click',()=>showScreen('store'));
+    document.getElementById('treasure-hunt-btn').addEventListener('click', () => { insuranceConfirmed = false; if (savedData.insuranceCount > 0) { if (confirm(`你擁有 ${savedData.insuranceCount} 份保險。\n是否為本次寶藏礦脈使用一份保險？`)) { savedData.insuranceCount--; insuranceConfirmed = true; saveGameData(); showToast("保險已啟用！"); } } gameState.selectedLevel = 'treasure_hunt'; populateCharacters(); updateLevelInfoDisplay(); showScreen("characterSelect"); });
+    document.getElementById('global-currency-display').addEventListener('click', () => showScreen('dataManagement'));
+    document.getElementById('close-data-modal-btn').addEventListener('click', () => showScreen('home'));
+    document.getElementById('export-data-btn').addEventListener('click', exportData);
+    document.getElementById('import-data-btn').addEventListener('click', importData);
+    document.getElementById('reset-data-btn').addEventListener('click', resetGameProgress);
+    document.getElementById('import-file-input').addEventListener('change', handleFileImport);
+    document.getElementById('back-to-home-from-store-btn').addEventListener('click',()=>showScreen('home'));
+    document.getElementById('back-to-home-btn').addEventListener('click',()=>showScreen('home'));
+    document.getElementById('back-to-level-from-char-btn').addEventListener('click',()=>showScreen('levelSelect'));
+    document.getElementById('play-again-btn').addEventListener('click',() => { clearGameListeners(); showScreen('levelSelect'); });
+    document.getElementById('retry-btn').addEventListener('click',()=>exitGame(true));
+    document.getElementById('back-to-menu-btn').addEventListener('click', () => exitGame(false));
+    document.getElementById('exit-game-btn').addEventListener('click',()=>exitGame());
+    buySpeedBoostBtn.addEventListener('click', buySpeedBoost);
+    buyBombBtn.addEventListener('click', buyBomb);
+    buyBombPouchBtn.addEventListener('click', buyBombPouch);
+    buyFlareBtn.addEventListener('click', buyFlare);
+    buyPhantomPotionBtn.addEventListener('click', buyPhantomPotion);
+    buyInsuranceBtn.addEventListener('click', buyInsurance);
+    placeBombBtn.addEventListener('click', placeBomb);
+    useFlareBtn.addEventListener('click', useFlare);
+    usePhantomPotionBtn.addEventListener('click', usePhantomPotion);
+    isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    loadGameData();
+    showScreen('home');
+});
+</script>
+</body>
+</html>
